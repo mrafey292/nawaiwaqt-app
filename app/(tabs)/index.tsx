@@ -1,98 +1,106 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import MapComponent from '@/components/MapView';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+// Hardcoded locations in Islamabad, Pakistan
+const islamabadLocations = [
+  {
+    lat: 33.6844,
+    lng: 73.0479,
+    title: "Faisal Mosque",
+    description: "One of the largest mosques in the world"
+  },
+  {
+    lat: 33.7294,
+    lng: 73.0931,
+    title: "Pakistan Monument",
+    description: "National monument and museum"
+  },
+  {
+    lat: 33.7077,
+    lng: 73.0513,
+    title: "Daman-e-Koh",
+    description: "Viewing point in Margalla Hills"
+  },
+  {
+    lat: 33.6973,
+    lng: 73.0515,
+    title: "Lok Virsa Museum",
+    description: "National Institute of Folk and Traditional Heritage"
+  },
+  {
+    lat: 33.7181,
+    lng: 73.0776,
+    title: "Rawal Lake",
+    description: "Artificial reservoir"
+  }
+];
+
+// Polygon areas in Islamabad
+const islamabadAreas = [
+  {
+    coordinates: [
+      { lat: 33.7380, lng: 73.0580 },
+      { lat: 33.7380, lng: 73.0780 },
+      { lat: 33.7180, lng: 73.0780 },
+      { lat: 33.7180, lng: 73.0580 }
+    ],
+    title: "F-6 Sector",
+    description: "Commercial and residential area",
+    color: "#ff7800",
+    fillColor: "#ff7800",
+    fillOpacity: 0.4
+  },
+  {
+    coordinates: [
+      { lat: 33.6920, lng: 73.0350 },
+      { lat: 33.6920, lng: 73.0550 },
+      { lat: 33.6720, lng: 73.0550 },
+      { lat: 33.6720, lng: 73.0350 }
+    ],
+    title: "F-7 Sector",
+    description: "Popular shopping and residential area",
+    color: "#00ff00",
+    fillColor: "#00ff00",
+    fillOpacity: 0.3
+  },
+  {
+    coordinates: [
+      { lat: 33.7100, lng: 73.0900 },
+      { lat: 33.7250, lng: 73.1050 },
+      { lat: 33.7050, lng: 73.1100 },
+      { lat: 33.6950, lng: 73.0950 }
+    ],
+    title: "Lake View Park Area",
+    description: "Recreational zone",
+    color: "#0066ff",
+    fillColor: "#0066ff",
+    fillOpacity: 0.35
+  },
+  {
+    coordinates: [
+      { lat: 33.5863, lng: 73.1631 },
+      { lat: 33.5863, lng: 73.1831 },
+      { lat: 33.5663, lng: 73.1831 },
+      { lat: 33.5663, lng: 73.1631 }
+    ],
+    title: "Designated Red Zone",
+    description: "High alert area - exercise caution",
+    color: "#ff0000",
+    fillColor: "#ff0000",
+    fillOpacity: 0.4
+  }
+];
 
 export default function HomeScreen() {
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
-
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <View style={styles.container}>
+      <MapComponent markers={islamabadLocations} polygons={islamabadAreas} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  container: {
+    flex: 1,
   },
 });
