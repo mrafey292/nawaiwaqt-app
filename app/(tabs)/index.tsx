@@ -1,5 +1,5 @@
-import { StyleSheet, View } from 'react-native';
 import MapComponent from '@/components/MapView';
+import { StyleSheet, View } from 'react-native';
 
 // Hardcoded locations in Islamabad, Pakistan
 const islamabadLocations = [
@@ -88,6 +88,19 @@ const islamabadAreas = [
     color: "#ff0000",
     fillColor: "#ff0000",
     fillOpacity: 0.4
+  },
+  {
+    coordinates: [
+      { lat: 33.65384, lng: 73.00291 },
+      { lat: 33.65384, lng: 72.98121 },
+      { lat: 33.63584, lng: 72.98121 },
+      { lat: 33.63584, lng: 73.00291 }
+    ],
+    title: "Cluster Zone",
+    description: "2km x 2km area",
+    color: "#ff00ff",
+    fillColor: "#ff00ff",
+    fillOpacity: 0.35
   }
 ];
 

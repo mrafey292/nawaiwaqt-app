@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, ActivityIndicator, Alert, Vibration } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { alarmManager } from '@/utils/alarmSound';
+import { setRedZonePolygons, startBackgroundLocationTracking, stopBackgroundLocationTracking } from '@/utils/backgroundLocation';
+import { checkRedZoneEntry } from '@/utils/geofence';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
-import { useAudioPlayer } from 'expo-audio';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Animated, StyleSheet, TouchableOpacity, Vibration, View } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { ThemedText } from './themed-text';
-import { checkRedZoneEntry } from '@/utils/geofence';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -47,23 +48,92 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isInRedZone, setIsInRedZone] = useState(false);
+  const [currentZoneName, setCurrentZoneName] = useState<string>('');
+  const [showAlarmBanner, setShowAlarmBanner] = useState(false);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const bannerOpacity = useRef(new Animated.Value(0)).current;
+  const pulseAnimation = useRef(new Animated.Value(1)).current;
 
-  // Request notification permissions
+  // Request notification permissions and setup background tracking
   useEffect(() => {
     (async () => {
       const { status } = await Notifications.requestPermissionsAsync();
       if (status !== 'granted') {
         console.log('Notification permissions not granted');
       }
+
+      // Initialize alarm sound manager
+      await alarmManager.initialize();
+
+      // Set polygons for background task and start background tracking
+      if (polygons.length > 0) {
+        setRedZonePolygons(polygons);
+        const started = await startBackgroundLocationTracking();
+        if (!started) {
+          Alert.alert(
+            'Background Tracking',
+            'Background location permission is required for red zone alerts when the app is closed.',
+            [{ text: 'OK' }]
+          );
+        }
+      }
     })();
+
+    return () => {
+      // Cleanup on unmount
+      stopBackgroundLocationTracking();
+    };
   }, []);
 
-  // Function to play alarm (using vibration as fallback)
-  const playAlarm = () => {
+  // Pulsing animation for alarm banner
+  useEffect(() => {
+    if (showAlarmBanner) {
+      // Fade in banner
+      Animated.timing(bannerOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+
+      // Start pulsing animation
+      const pulse = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnimation, {
+            toValue: 1.1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnimation, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      pulse.start();
+
+      return () => {
+        pulse.stop();
+      };
+    } else {
+      // Fade out banner
+      Animated.timing(bannerOpacity, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showAlarmBanner]);
+
+  // Function to play alarm (using vibration and audio)
+  const playAlarm = async () => {
     try {
       // Vibrate in pattern: wait 0ms, vibrate 1000ms, wait 500ms, vibrate 1000ms
       Vibration.vibrate([0, 1000, 500, 1000]);
+      
+      // Play loud audio alarm
+      await alarmManager.playAlarm();
     } catch (error) {
       console.error('Error triggering alarm:', error);
     }
@@ -73,13 +143,54 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
   const sendRedZoneNotification = async (zoneName: string) => {
     await Notifications.scheduleNotificationAsync({
       content: {
-        title: '⚠️ Red Zone Alert!',
-        body: `You are entering: ${zoneName}. Please be cautious!`,
+        title: '🚨 RED ZONE ALERT! 🚨',
+        body: `You are in: ${zoneName}. Please be cautious!`,
         sound: true,
-        priority: Notifications.AndroidNotificationPriority.HIGH,
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        vibrate: [0, 250, 250, 250],
       },
       trigger: null, // Send immediately
     });
+  };
+
+  // Function to dismiss alarm
+  const dismissAlarm = async () => {
+    setShowAlarmBanner(false);
+    setIsInRedZone(false);
+    setCurrentZoneName('');
+    stopContinuousAlarm();
+    await alarmManager.stopAlarm();
+  };
+
+  // Function to start continuous alarm
+  const startContinuousAlarm = async (zoneName: string) => {
+    // Clear any existing interval
+    if (alarmIntervalRef.current) {
+      clearInterval(alarmIntervalRef.current);
+    }
+
+    // Show alarm banner
+    setShowAlarmBanner(true);
+
+    // Play alarm immediately
+    await playAlarm();
+    await sendRedZoneNotification(zoneName);
+
+    // Set up interval to repeat alarm every 10 seconds
+    alarmIntervalRef.current = setInterval(async () => {
+      await playAlarm();
+      await sendRedZoneNotification(zoneName);
+    }, 10000); // 10 seconds
+  };
+
+  // Function to stop continuous alarm
+  const stopContinuousAlarm = async () => {
+    if (alarmIntervalRef.current) {
+      clearInterval(alarmIntervalRef.current);
+      alarmIntervalRef.current = null;
+    }
+    await alarmManager.stopAlarm();
+    setShowAlarmBanner(false);
   };
 
   // Function to check and handle red zone entry
@@ -91,27 +202,28 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
 
     const redZoneCheck = checkRedZoneEntry(userPos, polygons);
 
-    if (redZoneCheck.isInRedZone && !isInRedZone) {
-      // User just entered a red zone
-      setIsInRedZone(true);
+    if (redZoneCheck.isInRedZone) {
       const zone = polygons[redZoneCheck.zoneIndex];
       const zoneName = zone.title || 'Red Zone';
 
-      // Play alarm (vibration)
-      playAlarm();
+      if (!isInRedZone) {
+        // User just entered a red zone
+        setIsInRedZone(true);
+        setCurrentZoneName(zoneName);
+        await startContinuousAlarm(zoneName);
 
-      // Send notification
-      await sendRedZoneNotification(zoneName);
-
-      // Show alert
-      Alert.alert(
-        '⚠️ Red Zone Alert!',
-        `You are entering: ${zoneName}`,
-        [{ text: 'OK', style: 'default' }]
-      );
+        // Show alert
+        Alert.alert(
+          '🚨 RED ZONE ALERT! 🚨',
+          `You are entering: ${zoneName}. Continuous alerts will sound while you remain in this zone.`,
+          [{ text: 'OK', style: 'default' }]
+        );
+      }
     } else if (!redZoneCheck.isInRedZone && isInRedZone) {
       // User left the red zone
       setIsInRedZone(false);
+      setCurrentZoneName('');
+      await stopContinuousAlarm();
     }
   };
 
@@ -164,6 +276,8 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
       if (locationSubscription.current) {
         locationSubscription.current.remove();
       }
+      stopContinuousAlarm();
+      alarmManager.stopAlarm();
     };
   }, [polygons]);
 
@@ -238,25 +352,6 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
             radius: 100
           }).addTo(map);
           
-          // Add custom markers from props
-          const markerLocations = ${JSON.stringify(markers)};
-          markerLocations.forEach((loc) => {
-            const marker = L.marker([loc.lat, loc.lng], {
-              icon: L.icon({
-                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                iconSize: [25, 41],
-                iconAnchor: [12, 41],
-                popupAnchor: [1, -34],
-                shadowSize: [41, 41]
-              })
-            }).addTo(map);
-            
-            const popupContent = '<b>' + (loc.title || 'Location') + '</b>' + 
-                                (loc.description ? '<br>' + loc.description : '');
-            marker.bindPopup(popupContent);
-          });
-          
           // Add polygons from props
           const polygonAreas = ${JSON.stringify(polygons)};
           polygonAreas.forEach((polygon) => {
@@ -276,12 +371,8 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
             }
           });
           
-          // Fit map to show all markers and polygons if there are any
+          // Fit map to show all polygons if there are any
           const allPoints = [[${location.latitude}, ${location.longitude}]];
-          
-          if (markerLocations.length > 0) {
-            allPoints.push(...markerLocations.map(loc => [loc.lat, loc.lng]));
-          }
           
           if (polygonAreas.length > 0) {
             polygonAreas.forEach(polygon => {
@@ -306,6 +397,34 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
         javaScriptEnabled={true}
         domStorageEnabled={true}
       />
+      
+      {/* Red Zone Alarm Banner */}
+      {showAlarmBanner && (
+        <Animated.View 
+          style={[
+            styles.alarmBanner,
+            {
+              opacity: bannerOpacity,
+              transform: [{ scale: pulseAnimation }],
+            }
+          ]}
+        >
+          <View style={styles.alarmContent}>
+            <ThemedText style={styles.alarmEmoji}>🚨</ThemedText>
+            <View style={styles.alarmTextContainer}>
+              <ThemedText style={styles.alarmTitle}>RED ZONE ALERT!</ThemedText>
+              <ThemedText style={styles.alarmZoneName}>{currentZoneName}</ThemedText>
+              <ThemedText style={styles.alarmMessage}>You are in a hot zone! Please leave immediately.</ThemedText>
+            </View>
+            <TouchableOpacity 
+              style={styles.dismissButton}
+              onPress={dismissAlarm}
+            >
+              <ThemedText style={styles.dismissButtonText}>DISMISS</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -329,5 +448,72 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+  },
+  alarmBanner: {
+    position: 'absolute',
+    top: 60,
+    left: 16,
+    right: 16,
+    backgroundColor: '#ff0000',
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    borderWidth: 3,
+    borderColor: '#ffffff',
+  },
+  alarmContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  alarmEmoji: {
+    fontSize: 40,
+  },
+  alarmTextContainer: {
+    flex: 1,
+    gap: 4,
+  },
+  alarmTitle: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  alarmZoneName: {
+    color: '#ffff00',
+    fontSize: 16,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  alarmMessage: {
+    color: '#ffffff',
+    fontSize: 14,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  dismissButton: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  dismissButtonText: {
+    color: '#ff0000',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
 });
