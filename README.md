@@ -1,50 +1,176 @@
-# Welcome to your Expo app 👋
+# Red Zone Alert App 🚨
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A React Native mobile application built with Expo that provides real-time location-based alerts when users enter designated red zones. Features background monitoring, loud audio alarms that bypass silent mode, and persistent notifications.
 
-## Get started
+## Features ✨
 
-1. Install dependencies
+- 🗺️ **Interactive Map** with red zone polygons
+- 📍 **Real-time Location Tracking** with high accuracy
+- 🔊 **Loud Audio Alarms** that play even on silent/vibrate mode
+- 📱 **Background Service** - continues monitoring when app is closed
+- 🚨 **Visual Alert Banner** with dismiss button
+- 🔔 **High-Priority Notifications**
+- 📳 **Vibration Patterns** for alerts
+- 🎯 **Geofencing** with polygon-based red zones
 
-   ```bash
-   npm install
-   ```
+## Technologies Used
 
-2. Start the app
+- **Expo** - Development framework
+- **React Native** - Mobile app framework
+- **TypeScript** - Type-safe JavaScript
+- **expo-location** - Location services
+- **expo-task-manager** - Background tasks
+- **expo-av** - Audio playback
+- **expo-notifications** - Push notifications
+- **Leaflet.js** - Interactive maps
+- **react-native-webview** - Map rendering
 
-   ```bash
-   npx expo start
-   ```
+## Installation
 
-In the output, you'll find options to open the app in a
+### Prerequisites
+- Node.js (v16 or higher)
+- npm or yarn
+- Expo CLI
+- iOS Simulator / Android Emulator or physical device
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+### Setup
 
 ```bash
-npm run reset-project
+# Clone the repository
+git clone https://github.com/mrafey292/red-zone-alert-app.git
+cd red-zone-alert-app
+
+# Install dependencies
+npm install
+
+# Start the development server
+npm start
+
+# Run on iOS
+npm run ios
+
+# Run on Android
+npm run android
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Permissions Required
 
-## Learn more
+The app requires the following permissions:
 
-To learn more about developing your project with Expo, look at the following resources:
+**iOS:**
+- Location When In Use
+- Location Always (for background monitoring)
+- Notifications
+- Background Modes: location, audio
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+**Android:**
+- ACCESS_FINE_LOCATION
+- ACCESS_COARSE_LOCATION
+- ACCESS_BACKGROUND_LOCATION
+- VIBRATE
+- FOREGROUND_SERVICE
+- POST_NOTIFICATIONS
 
-## Join the community
+## How It Works
 
-Join our community of developers creating universal apps.
+1. **Grant Permissions**: On first launch, grant location permissions (select "Always Allow")
+2. **View Map**: See your current location and red zone polygons on the map
+3. **Automatic Alerts**: 
+   - When entering a red zone, you'll receive:
+     - Visual alert banner on screen
+     - Loud audio alarm (even on silent mode)
+     - Vibration pattern
+     - Push notification
+4. **Background Monitoring**: The app continues monitoring even when closed
+5. **Dismiss Alarm**: Tap the DISMISS button to stop the alarm manually
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+## Configuration
+
+### Add Custom Red Zones
+
+Edit `app/(tabs)/index.tsx` and add your polygon coordinates:
+
+```typescript
+const islamabadAreas = [
+  {
+    coordinates: [
+      { lat: 33.7380, lng: 73.0580 },
+      { lat: 33.7380, lng: 73.0780 },
+      { lat: 33.7180, lng: 73.0780 },
+      { lat: 33.7180, lng: 73.0580 }
+    ],
+    title: "Your Red Zone",
+    description: "Description",
+    color: "#ff0000",
+    fillColor: "#ff0000",
+    fillOpacity: 0.4
+  }
+];
+```
+
+### Customize Alarm Settings
+
+In `components/MapView.tsx`:
+- Change alarm interval (default: 10 seconds)
+- Modify alarm sound URL or add local file
+- Adjust notification priority and vibration patterns
+
+## Project Structure
+
+```
+├── app/                    # Expo Router screens
+│   └── (tabs)/
+│       ├── index.tsx      # Home screen with map
+│       ├── explore.tsx    # Explore screen
+│       └── report.tsx     # Report screen
+├── components/
+│   ├── MapView.tsx        # Main map component with alerts
+│   └── ...
+├── utils/
+│   ├── alarmSound.ts      # Audio alarm manager
+│   ├── backgroundLocation.ts  # Background geofencing
+│   └── geofence.ts        # Geofence calculations
+├── assets/                # Images and resources
+├── app.json              # Expo configuration
+└── package.json          # Dependencies
+```
+
+## Building for Production
+
+```bash
+# Build for Android
+eas build --platform android
+
+# Build for iOS
+eas build --platform ios
+```
+
+## Known Issues & Notes
+
+- Audio alarm currently uses an online URL. For production, add a local `alarm.mp3` file to assets.
+- Background location tracking increases battery consumption
+- iOS requires "Always Allow" location permission for background monitoring
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+MIT License - see LICENSE file for details
+
+## Author
+
+Muhammad Rafey
+- GitHub: [@mrafey292](https://github.com/mrafey292)
+- Email: mrafey292@gmail.com
+
+## Acknowledgments
+
+- Built with Expo
+- Map tiles from OpenStreetMap
+- Uses Leaflet.js for interactive maps
+
+---
+
+For detailed feature documentation, see [RED_ZONE_FEATURES.md](./RED_ZONE_FEATURES.md)

@@ -1,8 +1,10 @@
 {
-  "name": "expo-template-default",
-  "license": "0BSD",
+  "name": "red-zone-alert-app",
+  "description": "Location-based alert system with background monitoring and audio alarms for red zones",
+  "author": "Muhammad Rafey <mrafey292@gmail.com>",
+  "license": "MIT",
   "main": "expo-router/entry",
-  "version": "54.0.35",
+  "version": "1.0.0",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
