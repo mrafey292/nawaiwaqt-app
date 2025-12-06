@@ -1,4 +1,4 @@
-# Red Zone Alert App 🚨
+# Nawaiwaqt App 🚨
 
 A React Native mobile application built with Expo that provides real-time location-based alerts when users enter designated red zones. Features background monitoring, loud audio alarms that bypass silent mode, and persistent notifications.
 
@@ -37,8 +37,8 @@ A React Native mobile application built with Expo that provides real-time locati
 
 ```bash
 # Clone the repository
-git clone https://github.com/mrafey292/red-zone-alert-app.git
-cd red-zone-alert-app
+git clone https://github.com/mrafey292/nawaiwaqt-app.git
+cd nawaiwaqt-app
 
 # Install dependencies
 npm install

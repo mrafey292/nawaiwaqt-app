@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Red Zone Alert",
-    "slug": "red-zone-alert-app",
+    "name": "Nawaiwaqt",
+    "slug": "nawaiwaqt-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
