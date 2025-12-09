@@ -36,14 +36,16 @@ interface PolygonArea {
   color?: string;
   fillColor?: string;
   fillOpacity?: number;
+  clusterId?: number; // Add cluster ID for reference
 }
 
 interface MapComponentProps {
   markers?: MarkerLocation[];
   polygons?: PolygonArea[];
+  showClusterPoints?: boolean; // Option to show/hide cluster boundary points
 }
 
-export default function MapComponent({ markers = [], polygons = [] }: MapComponentProps) {
+export default function MapComponent({ markers = [], polygons = [], showClusterPoints = true }: MapComponentProps) {
   const [location, setLocation] = useState<UserLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -354,9 +356,12 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
           
           // Add polygons from props
           const polygonAreas = ${JSON.stringify(polygons)};
+          const showClusterPoints = ${showClusterPoints};
+          
           polygonAreas.forEach((polygon) => {
             const coordinates = polygon.coordinates.map(coord => [coord.lat, coord.lng]);
             
+            // Draw the polygon
             const poly = L.polygon(coordinates, {
               color: polygon.color || '#3388ff',
               fillColor: polygon.fillColor || '#3388ff',
@@ -368,6 +373,26 @@ export default function MapComponent({ markers = [], polygons = [] }: MapCompone
               const popupContent = '<b>' + (polygon.title || 'Area') + '</b>' + 
                                   (polygon.description ? '<br>' + polygon.description : '');
               poly.bindPopup(popupContent);
+            }
+            
+            // Add markers for each boundary/outlier point if enabled
+            if (showClusterPoints) {
+              polygon.coordinates.forEach((coord, index) => {
+                const pointMarker = L.circleMarker([coord.lat, coord.lng], {
+                  radius: 5,
+                  fillColor: '#ff6600',
+                  color: '#ffffff',
+                  weight: 2,
+                  opacity: 1,
+                  fillOpacity: 0.9
+                }).addTo(map);
+                
+                const pointPopup = '<b>' + (polygon.title || 'Cluster') + '</b>' +
+                                  '<br>Boundary Point ' + (index + 1) +
+                                  '<br>Lat: ' + coord.lat.toFixed(6) +
+                                  '<br>Lng: ' + coord.lng.toFixed(6);
+                pointMarker.bindPopup(pointPopup);
+              });
             }
           });
           
