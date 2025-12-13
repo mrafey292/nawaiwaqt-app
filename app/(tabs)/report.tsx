@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import {
-  StyleSheet,
-  View,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Modal,
-} from 'react-native';
-import { WebView } from 'react-native-webview';
-import * as Location from 'expo-location';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { WebView } from 'react-native-webview';
 
 interface LocationCoordinate {
   latitude: number;
@@ -258,21 +259,32 @@ export default function ReportCrimeScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        <ThemedView style={styles.header}>
-          <ThemedText type="title" style={styles.title}>
-            Report a Crime
-          </ThemedText>
-          <ThemedText style={styles.subtitle}>
-            Help us keep the community safe by reporting incidents
-          </ThemedText>
-        </ThemedView>
+        <View style={styles.headerContainer}>
+          <ThemedView style={styles.header}>
+            <View style={styles.iconContainer}>
+              <MaterialIcons name="report-problem" size={36} color="#ff0000" />
+            </View>
+            <ThemedText type="title" style={styles.title}>
+              Report a Crime
+            </ThemedText>
+            <ThemedText style={styles.subtitle}>
+              Your report helps keep our community safe. All information is confidential.
+            </ThemedText>
+          </ThemedView>
+        </View>
 
-        <ThemedView style={styles.form}>
+        <View style={styles.formCard}>
           {/* Crime Type Selection */}
           <View style={styles.formGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.label}>
-              Crime Type *
-            </ThemedText>
+            <View style={styles.labelContainer}>
+              <Ionicons name="alert-circle" size={20} color="#ff6b6b" />
+              <ThemedText type="defaultSemiBold" style={styles.label}>
+                Crime Type
+              </ThemedText>
+              <View style={styles.requiredBadge}>
+                <ThemedText style={styles.requiredText}>Required</ThemedText>
+              </View>
+            </View>
             <View style={styles.chipContainer}>
               {crimeTypes.map((type) => (
                 <TouchableOpacity
@@ -298,9 +310,15 @@ export default function ReportCrimeScreen() {
 
           {/* Description */}
           <View style={styles.formGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.label}>
-              Description *
-            </ThemedText>
+            <View style={styles.labelContainer}>
+              <Ionicons name="document-text" size={20} color="#4a90e2" />
+              <ThemedText type="defaultSemiBold" style={styles.label}>
+                Description
+              </ThemedText>
+              <View style={styles.requiredBadge}>
+                <ThemedText style={styles.requiredText}>Required</ThemedText>
+              </View>
+            </View>
             <TextInput
               style={styles.textArea}
               placeholder="Provide details about the incident..."
@@ -315,37 +333,47 @@ export default function ReportCrimeScreen() {
 
           {/* Location Selection */}
           <View style={styles.formGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.label}>
-              Location *
-            </ThemedText>
+            <View style={styles.labelContainer}>
+              <Ionicons name="location" size={20} color="#4CAF50" />
+              <ThemedText type="defaultSemiBold" style={styles.label}>
+                Incident Location
+              </ThemedText>
+              <View style={styles.requiredBadge}>
+                <ThemedText style={styles.requiredText}>Required</ThemedText>
+              </View>
+            </View>
             {selectedLocation ? (
               <View style={styles.locationDisplay}>
-                <ThemedText style={styles.locationText}>
-                  Lat: {selectedLocation.latitude.toFixed(6)}{'\n'}
-                  Lng: {selectedLocation.longitude.toFixed(6)}
-                </ThemedText>
+                <View style={styles.locationIconWrapper}>
+                  <Ionicons name="checkmark-circle" size={24} color="#2e7d32" />
+                </View>
+                <View style={styles.locationTextWrapper}>
+                  <ThemedText style={styles.locationLabel}>Selected Location</ThemedText>
+                  <ThemedText style={styles.locationText}>
+                    {selectedLocation.latitude.toFixed(6)}, {selectedLocation.longitude.toFixed(6)}
+                  </ThemedText>
+                </View>
               </View>
             ) : (
-              <ThemedText style={styles.locationInfo}>
-                No location selected
-              </ThemedText>
+              <View style={styles.noLocationDisplay}>
+                <Ionicons name="information-circle" size={20} color="#8b6914" style={{ marginRight: 8 }} />
+                <ThemedText style={styles.locationInfo}>No location selected yet</ThemedText>
+              </View>
             )}
             <View style={styles.locationButtons}>
               <TouchableOpacity
-                style={styles.locationButton}
+                style={[styles.locationButton, styles.locationButtonPrimary]}
                 onPress={() => setShowMap(true)}
               >
-                <ThemedText style={styles.locationButtonText}>
-                  📍 Pick on Map
-                </ThemedText>
+                <Ionicons name="map" size={20} color="#fff" />
+                <ThemedText style={styles.locationButtonText}>Pick on Map</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.locationButton}
+                style={[styles.locationButton, styles.locationButtonSecondary]}
                 onPress={useCurrentLocation}
               >
-                <ThemedText style={styles.locationButtonText}>
-                  📌 Use Current
-                </ThemedText>
+                <Ionicons name="navigate" size={20} color="#fff" />
+                <ThemedText style={styles.locationButtonText}>Use Current</ThemedText>
               </TouchableOpacity>
             </View>
           </View>
@@ -355,16 +383,25 @@ export default function ReportCrimeScreen() {
             style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
             onPress={handleSubmit}
             disabled={isSubmitting}
+            activeOpacity={0.8}
           >
+            {isSubmitting ? (
+              <Ionicons name="hourglass" size={22} color="#fff" />
+            ) : (
+              <Ionicons name="send" size={22} color="#fff" />
+            )}
             <ThemedText style={styles.submitButtonText}>
-              {isSubmitting ? 'Submitting...' : 'Submit Report'}
+              {isSubmitting ? 'Submitting Report...' : 'Submit Crime Report'}
             </ThemedText>
           </TouchableOpacity>
 
-          <ThemedText style={styles.disclaimer}>
-            * Required fields. Your report will help authorities take appropriate action.
-          </ThemedText>
-        </ThemedView>
+          <View style={styles.disclaimerContainer}>
+            <Ionicons name="shield-checkmark" size={18} color="#666" />
+            <ThemedText style={styles.disclaimer}>
+              Your information is confidential and will be shared with authorities to help keep our community safe.
+            </ThemedText>
+          </View>
+        </View>
       </ScrollView>
 
       {/* Map Modal */}
@@ -397,33 +434,84 @@ export default function ReportCrimeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#f5f7fa',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    paddingBottom: 40,
+  },
+  headerContainer: {
+    backgroundColor: '#fff',
     paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    marginBottom: 20,
   },
   header: {
-    marginBottom: 24,
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#fff0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   title: {
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     opacity: 0.7,
     fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
-  form: {
-    gap: 20,
+  formCard: {
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    borderRadius: 16,
+    padding: 20,
+    gap: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   formGroup: {
+    gap: 12,
+  },
+  labelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   label: {
     fontSize: 16,
-    marginBottom: 4,
+    flex: 1,
+  },
+  requiredBadge: {
+    backgroundColor: '#ff4444',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  requiredText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   chipContainer: {
     flexDirection: 'row',
@@ -433,18 +521,27 @@ const styles = StyleSheet.create({
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    backgroundColor: '#f5f5f5',
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    backgroundColor: '#f9f9f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   chipSelected: {
     backgroundColor: '#ff0000',
     borderColor: '#ff0000',
+    shadowColor: '#ff0000',
+    shadowOpacity: 0.3,
+    elevation: 3,
   },
   chipText: {
     fontSize: 14,
-    color: '#333',
+    color: '#555',
+    fontWeight: '500',
   },
   chipTextSelected: {
     color: '#fff',
@@ -452,76 +549,140 @@ const styles = StyleSheet.create({
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#fafafa',
     color: '#000',
   },
   textArea: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
+    borderColor: '#e0e0e0',
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    backgroundColor: '#fff',
+    backgroundColor: '#fafafa',
     color: '#000',
     minHeight: 120,
   },
+  noLocationDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff9e6',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ffe0a3',
+    marginBottom: 12,
+  },
   locationInfo: {
     fontSize: 14,
-    opacity: 0.7,
-    fontStyle: 'italic',
-    marginBottom: 8,
+    color: '#8b6914',
   },
   locationDisplay: {
-    backgroundColor: '#f0f0f0',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5e9',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#a5d6a7',
+  },
+  locationIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  locationTextWrapper: {
+    flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    color: '#2e7d32',
+    fontWeight: '600',
+    marginBottom: 4,
   },
   locationText: {
-    fontSize: 14,
-    color: '#333',
+    fontSize: 13,
+    color: '#1b5e20',
     fontFamily: 'monospace',
   },
   locationButtons: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   locationButton: {
     flex: 1,
-    backgroundColor: '#007AFF',
-    padding: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
+    padding: 14,
+    borderRadius: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  locationButtonPrimary: {
+    backgroundColor: '#2196F3',
+  },
+  locationButtonSecondary: {
+    backgroundColor: '#4CAF50',
   },
   locationButtonText: {
     color: '#fff',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   submitButton: {
+    flexDirection: 'row',
     backgroundColor: '#ff0000',
-    padding: 16,
-    borderRadius: 8,
+    padding: 18,
+    borderRadius: 12,
     alignItems: 'center',
-    marginTop: 10,
+    justifyContent: 'center',
+    marginTop: 8,
+    gap: 10,
+    shadowColor: '#ff0000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   submitButtonDisabled: {
     backgroundColor: '#ccc',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: 'bold',
+    letterSpacing: 0.5,
+  },
+  disclaimerContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 4,
   },
   disclaimer: {
-    fontSize: 12,
-    opacity: 0.6,
-    textAlign: 'center',
-    marginTop: 8,
+    flex: 1,
+    fontSize: 11,
+    color: '#666',
+    lineHeight: 16,
   },
   mapContainer: {
     flex: 1,
