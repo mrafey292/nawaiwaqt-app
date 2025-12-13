@@ -396,19 +396,18 @@ export default function MapComponent({ markers = [], polygons = [], showClusterP
             }
           });
           
-          // Fit map to show all polygons if there are any
-          const allPoints = [[${location.latitude}, ${location.longitude}]];
+          // Set initial view to 20km x 20km radius around current location
+          // ~0.09 degrees latitude = ~10km, ~0.12 degrees longitude at ~33°N = ~10km
+          const userLat = ${location.latitude};
+          const userLng = ${location.longitude};
+          const latOffset = 0.09; // ~10km north/south
+          const lngOffset = 0.12; // ~10km east/west at this latitude
           
-          if (polygonAreas.length > 0) {
-            polygonAreas.forEach(polygon => {
-              allPoints.push(...polygon.coordinates.map(coord => [coord.lat, coord.lng]));
-            });
-          }
-          
-          if (allPoints.length > 1) {
-            const bounds = L.latLngBounds(allPoints);
-            map.fitBounds(bounds, { padding: [50, 50] });
-          }
+          const bounds = L.latLngBounds(
+            [userLat - latOffset, userLng - lngOffset], // Southwest corner
+            [userLat + latOffset, userLng + lngOffset]  // Northeast corner
+          );
+          map.fitBounds(bounds, { padding: [20, 20] });
         </script>
       </body>
     </html>

@@ -14,7 +14,11 @@
         "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show you on the map.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "This app needs access to your location in the background to alert you when entering red zones.",
         "NSLocationAlwaysUsageDescription": "This app needs access to your location in the background to alert you when entering red zones.",
-        "UIBackgroundModes": ["location", "audio", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -34,8 +38,11 @@
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS",
-        "WAKE_LOCK"
-      ]
+        "WAKE_LOCK",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "package": "com.mrafey292.nawaiwaqtapp"
     },
     "web": {
       "output": "static",
@@ -68,11 +75,25 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "954d066d-e5de-4fd5-ac23-29745aea0101"
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,56 +8,76 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 
-interface CrimeReport {
-  crimeType: string;
-  description: string;
-  location: {
-    latitude: number;
-    longitude: number;
-    address?: string;
-  };
-  dateTime: string;
-  reporterName?: string;
-  reporterContact?: string;
+interface LocationCoordinate {
+  latitude: number;
+  longitude: number;
 }
 
 export default function ReportCrimeScreen() {
   const [crimeType, setCrimeType] = useState('');
   const [description, setDescription] = useState('');
-  const [reporterName, setReporterName] = useState('');
-  const [reporterContact, setReporterContact] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<LocationCoordinate | null>(null);
+  const [showMap, setShowMap] = useState(false);
+  const [userLocation, setUserLocation] = useState<LocationCoordinate | null>(null);
 
-  const crimeTypes = ['Theft', 'Assault', 'Robbery', 'Vandalism', 'Harassment', 'Other'];
+  const crimeTypes = [
+    { label: 'Theft', value: 'theft' },
+    { label: 'Assault', value: 'assault' },
+    { label: 'Robbery', value: 'robbery' },
+    { label: 'Vandalism', value: 'vandalism' },
+    { label: 'Harassment', value: 'harassment' },
+    { label: 'Murder', value: 'murder' },
+    { label: 'Burglary', value: 'burglary' },
+    { label: 'Other', value: 'other' },
+  ];
 
-  // Get user's current location
-  const getCurrentLocation = async () => {
+  // Get user's current location on mount
+  useEffect(() => {
+    const getInitialLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({});
+          const coords = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          };
+          setUserLocation(coords);
+          setSelectedLocation(coords);
+        }
+      } catch (error) {
+        console.error('Error getting location:', error);
+      }
+    };
+    getInitialLocation();
+  }, []);
+
+  const useCurrentLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required to report crime location.');
-        return null;
+        Alert.alert('Permission Denied', 'Location permission is required.');
+        return;
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      setUserLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-      return {
+      const coords = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
       };
+      setSelectedLocation(coords);
+      Alert.alert('Success', 'Current location set');
     } catch (error) {
       console.error('Error getting location:', error);
       Alert.alert('Error', 'Failed to get current location');
-      return null;
     }
   };
 
@@ -73,35 +93,50 @@ export default function ReportCrimeScreen() {
       return;
     }
 
+    if (!selectedLocation) {
+      Alert.alert('Validation Error', 'Please select a location on the map');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Get current location
-      const location = await getCurrentLocation();
-      if (!location) {
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Create crime report object
-      const crimeReport: CrimeReport = {
-        crimeType,
+      // Create crime report payload matching API format
+      // Format timestamp without milliseconds to match API example
+      const now = new Date();
+      const timestamp = now.toISOString().split('.')[0]; // Remove milliseconds and Z
+      
+      const payload = {
+        event_type: crimeType,
+        timestamp: timestamp,
+        source_url: 'mobile_app',
         description: description.trim(),
-        location,
-        dateTime: new Date().toISOString(),
-        reporterName: reporterName.trim() || undefined,
-        reporterContact: reporterContact.trim() || undefined,
+        locations: [
+          {
+            latitude: selectedLocation.latitude,
+            longitude: selectedLocation.longitude,
+          },
+        ],
       };
 
-      // TODO: Replace with your actual API endpoint
-      // await fetch('YOUR_API_ENDPOINT/report-crime', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify(crimeReport),
-      // });
+      console.log('Submitting payload:', JSON.stringify(payload, null, 2));
+      
+      const response = await fetch('http://13.204.159.24:8000/log-crime-event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': 'WnVeVkkdOt',
+        },
+        body: JSON.stringify(payload),
+      });
 
-      // For now, just log to console
-      console.log('Crime Report:', crimeReport);
+      const responseText = await response.text();
+      console.log('API Response Status:', response.status);
+      console.log('API Response Body:', responseText);
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status} - ${responseText}`);
+      }
 
       Alert.alert(
         'Report Submitted',
@@ -113,18 +148,107 @@ export default function ReportCrimeScreen() {
               // Clear form
               setCrimeType('');
               setDescription('');
-              setReporterName('');
-              setReporterContact('');
-              setUserLocation(null);
+              // Keep location for next report
             },
           },
         ]
       );
     } catch (error) {
       console.error('Error submitting report:', error);
-      Alert.alert('Error', 'Failed to submit report. Please try again.');
+      Alert.alert('Error', 'Failed to submit report. Please check your internet connection and try again.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Generate map HTML for location picker
+  const generateMapHTML = () => {
+    const lat = selectedLocation?.latitude || userLocation?.latitude || 33.6;
+    const lng = selectedLocation?.longitude || userLocation?.longitude || 73.0;
+    
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+          <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+          <style>
+            body { margin: 0; padding: 0; }
+            #map { width: 100%; height: 100vh; }
+            .confirm-button {
+              position: absolute;
+              bottom: 20px;
+              left: 50%;
+              transform: translateX(-50%);
+              background: #ff0000;
+              color: white;
+              padding: 12px 24px;
+              border: none;
+              border-radius: 8px;
+              font-size: 16px;
+              font-weight: bold;
+              z-index: 1000;
+              cursor: pointer;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            }
+          </style>
+        </head>
+        <body>
+          <div id="map"></div>
+          <button class="confirm-button" onclick="confirmLocation()">Confirm Location</button>
+          <script>
+            var map = L.map('map').setView([${lat}, ${lng}], 13);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '© OpenStreetMap contributors',
+              maxZoom: 19
+            }).addTo(map);
+            
+            var marker = L.marker([${lat}, ${lng}], { draggable: true }).addTo(map);
+            marker.bindPopup('<b>Crime Location</b><br>Drag to adjust').openPopup();
+            
+            var selectedLat = ${lat};
+            var selectedLng = ${lng};
+            
+            marker.on('dragend', function(e) {
+              var pos = e.target.getLatLng();
+              selectedLat = pos.lat;
+              selectedLng = pos.lng;
+              marker.setPopupContent('<b>Crime Location</b><br>Lat: ' + pos.lat.toFixed(6) + '<br>Lng: ' + pos.lng.toFixed(6));
+            });
+            
+            map.on('click', function(e) {
+              selectedLat = e.latlng.lat;
+              selectedLng = e.latlng.lng;
+              marker.setLatLng(e.latlng);
+              marker.setPopupContent('<b>Crime Location</b><br>Lat: ' + e.latlng.lat.toFixed(6) + '<br>Lng: ' + e.latlng.lng.toFixed(6));
+              marker.openPopup();
+            });
+            
+            function confirmLocation() {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                latitude: selectedLat,
+                longitude: selectedLng
+              }));
+            }
+          </script>
+        </body>
+      </html>
+    `;
+  };
+
+  const handleMapMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      setSelectedLocation({
+        latitude: data.latitude,
+        longitude: data.longitude,
+      });
+      setShowMap(false);
+      Alert.alert('Location Set', `Lat: ${data.latitude.toFixed(6)}, Lng: ${data.longitude.toFixed(6)}`);
+    } catch (error) {
+      console.error('Error parsing map message:', error);
     }
   };
 
@@ -152,20 +276,20 @@ export default function ReportCrimeScreen() {
             <View style={styles.chipContainer}>
               {crimeTypes.map((type) => (
                 <TouchableOpacity
-                  key={type}
+                  key={type.value}
                   style={[
                     styles.chip,
-                    crimeType === type && styles.chipSelected,
+                    crimeType === type.value && styles.chipSelected,
                   ]}
-                  onPress={() => setCrimeType(type)}
+                  onPress={() => setCrimeType(type.value)}
                 >
                   <ThemedText
                     style={[
                       styles.chipText,
-                      crimeType === type && styles.chipTextSelected,
+                      crimeType === type.value && styles.chipTextSelected,
                     ]}
                   >
-                    {type}
+                    {type.label}
                   </ThemedText>
                 </TouchableOpacity>
               ))}
@@ -189,45 +313,41 @@ export default function ReportCrimeScreen() {
             />
           </View>
 
-          {/* Reporter Name (Optional) */}
+          {/* Location Selection */}
           <View style={styles.formGroup}>
             <ThemedText type="defaultSemiBold" style={styles.label}>
-              Your Name (Optional)
+              Location *
             </ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your name"
-              placeholderTextColor="#999"
-              value={reporterName}
-              onChangeText={setReporterName}
-            />
-          </View>
-
-          {/* Contact Information (Optional) */}
-          <View style={styles.formGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.label}>
-              Contact Number (Optional)
-            </ThemedText>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your phone number"
-              placeholderTextColor="#999"
-              keyboardType="phone-pad"
-              value={reporterContact}
-              onChangeText={setReporterContact}
-            />
-          </View>
-
-          {/* Location Info */}
-          <View style={styles.formGroup}>
-            <ThemedText type="defaultSemiBold" style={styles.label}>
-              Location
-            </ThemedText>
-            <ThemedText style={styles.locationInfo}>
-              {userLocation
-                ? `Lat: ${userLocation.latitude.toFixed(6)}, Lng: ${userLocation.longitude.toFixed(6)}`
-                : 'Location will be automatically captured when you submit'}
-            </ThemedText>
+            {selectedLocation ? (
+              <View style={styles.locationDisplay}>
+                <ThemedText style={styles.locationText}>
+                  Lat: {selectedLocation.latitude.toFixed(6)}{'\n'}
+                  Lng: {selectedLocation.longitude.toFixed(6)}
+                </ThemedText>
+              </View>
+            ) : (
+              <ThemedText style={styles.locationInfo}>
+                No location selected
+              </ThemedText>
+            )}
+            <View style={styles.locationButtons}>
+              <TouchableOpacity
+                style={styles.locationButton}
+                onPress={() => setShowMap(true)}
+              >
+                <ThemedText style={styles.locationButtonText}>
+                  📍 Pick on Map
+                </ThemedText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.locationButton}
+                onPress={useCurrentLocation}
+              >
+                <ThemedText style={styles.locationButtonText}>
+                  📌 Use Current
+                </ThemedText>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Submit Button */}
@@ -246,6 +366,30 @@ export default function ReportCrimeScreen() {
           </ThemedText>
         </ThemedView>
       </ScrollView>
+
+      {/* Map Modal */}
+      <Modal
+        visible={showMap}
+        animationType="slide"
+        onRequestClose={() => setShowMap(false)}
+      >
+        <View style={styles.mapContainer}>
+          <View style={styles.mapHeader}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowMap(false)}
+            >
+              <ThemedText style={styles.closeButtonText}>✕ Close</ThemedText>
+            </TouchableOpacity>
+            <ThemedText style={styles.mapTitle}>Select Crime Location</ThemedText>
+          </View>
+          <WebView
+            source={{ html: generateMapHTML() }}
+            style={styles.webview}
+            onMessage={handleMapMessage}
+          />
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -329,6 +473,34 @@ const styles = StyleSheet.create({
     fontSize: 14,
     opacity: 0.7,
     fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  locationDisplay: {
+    backgroundColor: '#f0f0f0',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  locationText: {
+    fontSize: 14,
+    color: '#333',
+    fontFamily: 'monospace',
+  },
+  locationButtons: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  locationButton: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  locationButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   submitButton: {
     backgroundColor: '#ff0000',
@@ -350,5 +522,36 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     textAlign: 'center',
     marginTop: 8,
+  },
+  mapContainer: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  mapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    paddingTop: 50,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#ddd',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  mapTitle: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginRight: 50,
+  },
+  webview: {
+    flex: 1,
   },
 });
