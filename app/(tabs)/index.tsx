@@ -1,8 +1,8 @@
 import MapComponent from '@/components/MapView';
 import { ThemedText } from '@/components/themed-text';
 import { loadClustersAndCrimePoints } from '@/services/clusterService';
-import { PolygonArea, CrimePoint } from '@/utils/clusterParser';
-import { subscribeToTestHotzone, generateTestHotzonePolygon, getTestHotzone } from '@/utils/testHotzone';
+import { CrimePoint, PolygonArea } from '@/utils/clusterParser';
+import { generateTestHotzonePolygon, getTestHotzone, subscribeToTestHotzone } from '@/utils/testHotzone';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 

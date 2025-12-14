@@ -1,6 +1,6 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { setTestHotzone as setGlobalTestHotzone, getTestHotzone } from '@/utils/testHotzone';
+import { getTestHotzone, setTestHotzone as setGlobalTestHotzone } from '@/utils/testHotzone';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';

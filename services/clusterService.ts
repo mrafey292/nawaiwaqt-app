@@ -1,4 +1,4 @@
-import { filterClustersByProximity, parseClusters, parseOutliers, PolygonArea, CrimePoint } from '@/utils/clusterParser';
+import { CrimePoint, filterClustersByProximity, parseClusters, parseOutliers, PolygonArea } from '@/utils/clusterParser';
 import { fetchClustersWithRetry } from './api';
 
 /**

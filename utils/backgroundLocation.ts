@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
-import { checkProximityAlerts, AlertLevel } from './geofence';
+import { AlertLevel, checkProximityAlerts } from './geofence';
 
 const BACKGROUND_LOCATION_TASK = 'background-location-task';
 

@@ -1,6 +1,6 @@
 import { alarmManager } from '@/utils/alarmSound';
-import { setRedZonePolygons, setCrimePoints, startBackgroundLocationTracking, stopBackgroundLocationTracking } from '@/utils/backgroundLocation';
-import { checkProximityAlerts, AlertLevel } from '@/utils/geofence';
+import { setCrimePoints, setRedZonePolygons, startBackgroundLocationTracking, stopBackgroundLocationTracking } from '@/utils/backgroundLocation';
+import { AlertLevel, checkProximityAlerts } from '@/utils/geofence';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect, useRef, useState } from 'react';
