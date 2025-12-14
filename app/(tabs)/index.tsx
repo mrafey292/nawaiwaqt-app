@@ -1,12 +1,14 @@
 import MapComponent from '@/components/MapView';
 import { ThemedText } from '@/components/themed-text';
-import { loadClusters } from '@/services/clusterService';
-import { PolygonArea } from '@/utils/clusterParser';
+import { loadClustersAndCrimePoints } from '@/services/clusterService';
+import { PolygonArea, CrimePoint } from '@/utils/clusterParser';
+import { subscribeToTestHotzone, generateTestHotzonePolygon, getTestHotzone } from '@/utils/testHotzone';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, View } from 'react-native';
 
 export default function HomeScreen() {
   const [clusters, setClusters] = useState<PolygonArea[]>([]);
+  const [crimePoints, setCrimePoints] = useState<CrimePoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,19 +16,49 @@ export default function HomeScreen() {
     loadClustersFromApi();
   }, []);
 
+  useEffect(() => {
+    // Subscribe to test hotzone changes
+    const unsubscribe = subscribeToTestHotzone((testData) => {
+      if (testData.enabled && testData.location) {
+        // Add test hotzone polygon
+        const testPolygon = generateTestHotzonePolygon(testData.location.lat, testData.location.lng);
+        setClusters(prevClusters => {
+          // Remove any existing test hotzone
+          const filteredClusters = prevClusters.filter(c => c.clusterId !== -1);
+          return [...filteredClusters, testPolygon];
+        });
+      } else {
+        // Remove test hotzone
+        setClusters(prevClusters => prevClusters.filter(c => c.clusterId !== -1));
+      }
+    });
+    
+    return () => unsubscribe();
+  }, []);
+
   const loadClustersFromApi = async () => {
     try {
       setLoading(true);
       setError(null);
-      const clusterData = await loadClusters();
-      setClusters(clusterData);
-      console.log(`Loaded ${clusterData.length} clusters successfully`);
+      const { clusters: clusterData, crimePoints: crimePointData } = await loadClustersAndCrimePoints();
+      
+      // Check if there's an active test hotzone and add it
+      const testHotzone = getTestHotzone();
+      
+      if (testHotzone.enabled && testHotzone.location) {
+        const testPolygon = generateTestHotzonePolygon(testHotzone.location.lat, testHotzone.location.lng);
+        setClusters([...clusterData, testPolygon]);
+      } else {
+        setClusters(clusterData);
+      }
+      
+      setCrimePoints(crimePointData);
     } catch (err) {
-      const errorMessage = 'Failed to load red zone clusters. Please check your internet connection.';
+      const errorMessage = 'Failed to load crime data. Please check your internet connection.';
       setError(errorMessage);
-      console.error('Error loading clusters:', err);
+      console.error('Error loading data:', err);
       Alert.alert(
-        'Error Loading Clusters',
+        'Error Loading Data',
         errorMessage,
         [
           { text: 'Retry', onPress: loadClustersFromApi },
@@ -42,7 +74,7 @@ export default function HomeScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#ff0000" />
-        <ThemedText style={styles.loadingText}>Loading red zone clusters...</ThemedText>
+        <ThemedText style={styles.loadingText}>Loading crime data...</ThemedText>
       </View>
     );
   }
@@ -60,7 +92,12 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <MapComponent markers={[]} polygons={clusters} showClusterPoints={true} />
+      <MapComponent 
+        markers={[]} 
+        polygons={clusters} 
+        crimePoints={crimePoints}
+        showClusterPoints={true} 
+      />
     </View>
   );
 }

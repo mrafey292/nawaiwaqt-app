@@ -1,6 +1,6 @@
 import { alarmManager } from '@/utils/alarmSound';
-import { setRedZonePolygons, startBackgroundLocationTracking, stopBackgroundLocationTracking } from '@/utils/backgroundLocation';
-import { checkRedZoneEntry } from '@/utils/geofence';
+import { setRedZonePolygons, setCrimePoints, startBackgroundLocationTracking, stopBackgroundLocationTracking } from '@/utils/backgroundLocation';
+import { checkProximityAlerts, AlertLevel } from '@/utils/geofence';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import React, { useEffect, useRef, useState } from 'react';
@@ -39,18 +39,28 @@ interface PolygonArea {
   clusterId?: number; // Add cluster ID for reference
 }
 
+interface CrimePoint {
+  lat: number;
+  lng: number;
+  title?: string;
+  description?: string;
+  id?: string;
+}
+
 interface MapComponentProps {
   markers?: MarkerLocation[];
   polygons?: PolygonArea[];
+  crimePoints?: CrimePoint[]; // Individual crime incident locations
   showClusterPoints?: boolean; // Option to show/hide cluster boundary points
 }
 
-export default function MapComponent({ markers = [], polygons = [], showClusterPoints = true }: MapComponentProps) {
+export default function MapComponent({ markers = [], polygons = [], crimePoints = [], showClusterPoints = true }: MapComponentProps) {
   const [location, setLocation] = useState<UserLocation | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isInRedZone, setIsInRedZone] = useState(false);
+  const [alertLevel, setAlertLevel] = useState<AlertLevel>('safe');
   const [currentZoneName, setCurrentZoneName] = useState<string>('');
+  const [proximityDistance, setProximityDistance] = useState<number>(0);
   const [showAlarmBanner, setShowAlarmBanner] = useState(false);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
   const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -68,14 +78,15 @@ export default function MapComponent({ markers = [], polygons = [], showClusterP
       // Initialize alarm sound manager
       await alarmManager.initialize();
 
-      // Set polygons for background task and start background tracking
-      if (polygons.length > 0) {
+      // Set polygons and crime points for background task and start background tracking
+      if (polygons.length > 0 || crimePoints.length > 0) {
         setRedZonePolygons(polygons);
+        setCrimePoints(crimePoints);
         const started = await startBackgroundLocationTracking();
         if (!started) {
           Alert.alert(
             'Background Tracking',
-            'Background location permission is required for red zone alerts when the app is closed.',
+            'Background location permission is required for crime alerts when the app is closed.',
             [{ text: 'OK' }]
           );
         }
@@ -158,8 +169,9 @@ export default function MapComponent({ markers = [], polygons = [], showClusterP
   // Function to dismiss alarm
   const dismissAlarm = async () => {
     setShowAlarmBanner(false);
-    setIsInRedZone(false);
+    setAlertLevel('safe');
     setCurrentZoneName('');
+    setProximityDistance(0);
     stopContinuousAlarm();
     await alarmManager.stopAlarm();
   };
@@ -195,37 +207,68 @@ export default function MapComponent({ markers = [], polygons = [], showClusterP
     setShowAlarmBanner(false);
   };
 
-  // Function to check and handle red zone entry
+  // Function to check and handle proximity alerts with three levels
   const handleLocationUpdate = async (currentLocation: Location.LocationObject) => {
     const userPos = {
       lat: currentLocation.coords.latitude,
       lng: currentLocation.coords.longitude,
     };
 
-    const redZoneCheck = checkRedZoneEntry(userPos, polygons);
+    const proximityAlert = checkProximityAlerts(
+      userPos,
+      polygons,
+      0, // Inside = critical
+      500, // 500m = warning
+      crimePoints // Individual crime points
+    );
 
-    if (redZoneCheck.isInRedZone) {
-      const zone = polygons[redZoneCheck.zoneIndex];
-      const zoneName = zone.title || 'Red Zone';
+    const previousLevel = alertLevel;
+    setAlertLevel(proximityAlert.level);
 
-      if (!isInRedZone) {
-        // User just entered a red zone
-        setIsInRedZone(true);
-        setCurrentZoneName(zoneName);
+    if (proximityAlert.level === 'critical') {
+      // CRITICAL: Inside crime hotspot - HIGH ALARM
+      const zoneName = proximityAlert.zoneName || 'Crime Hotspot';
+      setCurrentZoneName(zoneName);
+      setProximityDistance(0);
+
+      if (previousLevel !== 'critical') {
+        // Just entered critical zone
         await startContinuousAlarm(zoneName);
-
-        // Show alert
         Alert.alert(
-          '🚨 RED ZONE ALERT! 🚨',
-          `You are entering: ${zoneName}. Continuous alerts will sound while you remain in this zone.`,
+          '🚨 DANGER! CRIME HOTSPOT ALERT! 🚨',
+          `You are inside ${zoneName}! Leave immediately for your safety. Continuous alarms will sound.`,
+          [{ text: 'OK', style: 'destructive' }]
+        );
+      }
+    } else if (proximityAlert.level === 'warning') {
+      // WARNING: Near crime zone - Show warning banner only
+      const zoneName = proximityAlert.zoneName || 'Crime Zone';
+      setCurrentZoneName(zoneName);
+      setProximityDistance(proximityAlert.distance || 0);
+      setShowAlarmBanner(true);
+
+      if (previousLevel === 'critical') {
+        // Downgraded from critical to warning
+        await stopContinuousAlarm();
+      }
+
+      if (previousLevel === 'safe') {
+        // Just entered warning zone
+        Alert.alert(
+          '⚠️ Warning: Approaching Crime Zone',
+          `You are ${proximityAlert.distance}m from ${zoneName}. Stay alert and consider avoiding the area.`,
           [{ text: 'OK', style: 'default' }]
         );
       }
-    } else if (!redZoneCheck.isInRedZone && isInRedZone) {
-      // User left the red zone
-      setIsInRedZone(false);
+    } else {
+      // SAFE: Not near any crime zone
+      if (previousLevel === 'critical') {
+        await stopContinuousAlarm();
+      } else if (previousLevel === 'warning') {
+        setShowAlarmBanner(false);
+      }
       setCurrentZoneName('');
-      await stopContinuousAlarm();
+      setProximityDistance(0);
     }
   };
 
@@ -319,13 +362,21 @@ export default function MapComponent({ markers = [], polygons = [], showClusterP
         <style>
           body { margin: 0; padding: 0; }
           #map { width: 100%; height: 100vh; }
+          .leaflet-control-zoom {
+            margin-top: 80px !important;
+          }
         </style>
       </head>
       <body>
         <div id="map"></div>
         <script>
-          // Initialize map centered on user location
-          const map = L.map('map').setView([${location.latitude}, ${location.longitude}], 13);
+          // Initialize map centered on user location with zoom controls
+          const map = L.map('map', {
+            zoomControl: true,
+            zoomControlOptions: {
+              position: 'topleft'
+            }
+          }).setView([${location.latitude}, ${location.longitude}], 13);
           
           // Add OpenStreetMap tile layer
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -396,6 +447,25 @@ export default function MapComponent({ markers = [], polygons = [], showClusterP
             }
           });
           
+          // Add individual crime points (outliers)
+          const crimePoints = ${JSON.stringify(crimePoints)};
+          crimePoints.forEach((point) => {
+            const crimeMarker = L.circleMarker([point.lat, point.lng], {
+              radius: 8,
+              fillColor: '#ff0000',
+              color: '#ffffff',
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 0.8
+            }).addTo(map);
+            
+            const crimePopup = '<b>' + (point.title || 'Crime Incident') + '</b>' +
+                              (point.description ? '<br>' + point.description : '') +
+                              '<br>Lat: ' + point.lat.toFixed(6) +
+                              '<br>Lng: ' + point.lng.toFixed(6);
+            crimeMarker.bindPopup(crimePopup);
+          });
+          
           // Set initial view to 20km x 20km radius around current location
           // ~0.09 degrees latitude = ~10km, ~0.12 degrees longitude at ~33°N = ~10km
           const userLat = ${location.latitude};
@@ -416,29 +486,40 @@ export default function MapComponent({ markers = [], polygons = [], showClusterP
   return (
     <View style={styles.container}>
       <WebView
+        key={`map-${polygons.length}-${crimePoints.length}`}
         source={{ html: mapHtml }}
         style={styles.map}
         javaScriptEnabled={true}
         domStorageEnabled={true}
       />
       
-      {/* Red Zone Alarm Banner */}
-      {showAlarmBanner && (
+      {/* Alert Banner - Shows different messages based on alert level */}
+      {(showAlarmBanner || alertLevel !== 'safe') && (
         <Animated.View 
           style={[
             styles.alarmBanner,
+            alertLevel === 'critical' && styles.criticalBanner,
+            alertLevel === 'warning' && styles.warningBanner,
             {
               opacity: bannerOpacity,
-              transform: [{ scale: pulseAnimation }],
+              transform: alertLevel === 'critical' ? [{ scale: pulseAnimation }] : [],
             }
           ]}
         >
           <View style={styles.alarmContent}>
-            <ThemedText style={styles.alarmEmoji}>🚨</ThemedText>
+            <ThemedText style={styles.alarmEmoji}>
+              {alertLevel === 'critical' ? '🚨' : '⚠️'}
+            </ThemedText>
             <View style={styles.alarmTextContainer}>
-              <ThemedText style={styles.alarmTitle}>RED ZONE ALERT!</ThemedText>
+              <ThemedText style={styles.alarmTitle}>
+                {alertLevel === 'critical' ? 'DANGER! CRIME HOTSPOT!' : 'WARNING: CRIME ZONE NEARBY'}
+              </ThemedText>
               <ThemedText style={styles.alarmZoneName}>{currentZoneName}</ThemedText>
-              <ThemedText style={styles.alarmMessage}>You are in a hot zone! Please leave immediately.</ThemedText>
+              <ThemedText style={styles.alarmMessage}>
+                {alertLevel === 'critical' 
+                  ? 'You are inside a crime hotspot! Leave immediately for your safety!' 
+                  : `${proximityDistance}m away. Stay alert and consider avoiding the area.`}
+              </ThemedText>
             </View>
             <TouchableOpacity 
               style={styles.dismissButton}
@@ -478,7 +559,6 @@ const styles = StyleSheet.create({
     top: 60,
     left: 16,
     right: 16,
-    backgroundColor: '#ff0000',
     borderRadius: 16,
     padding: 20,
     shadowColor: '#000',
@@ -491,6 +571,12 @@ const styles = StyleSheet.create({
     elevation: 10,
     borderWidth: 3,
     borderColor: '#ffffff',
+  },
+  criticalBanner: {
+    backgroundColor: '#ff0000',
+  },
+  warningBanner: {
+    backgroundColor: '#ff8c00',
   },
   alarmContent: {
     flexDirection: 'row',

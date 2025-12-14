@@ -1,7 +1,7 @@
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
-import { checkRedZoneEntry } from './geofence';
+import { checkProximityAlerts, AlertLevel } from './geofence';
 
 const BACKGROUND_LOCATION_TASK = 'background-location-task';
 
@@ -14,12 +14,27 @@ interface PolygonArea {
   fillOpacity?: number;
 }
 
+interface CrimePoint {
+  lat: number;
+  lng: number;
+  title?: string;
+  description?: string;
+}
+
 let redZonePolygons: PolygonArea[] = [];
-let isCurrentlyInRedZone = false;
+let crimePoints: CrimePoint[] = [];
+let currentAlertLevel: AlertLevel = 'safe';
+let lastNotificationTime = 0;
+const NOTIFICATION_COOLDOWN = 30000; // 30 seconds between notifications
 
 // Function to set polygons from the app
 export function setRedZonePolygons(polygons: PolygonArea[]) {
   redZonePolygons = polygons;
+}
+
+// Function to set crime points from the app
+export function setCrimePoints(points: CrimePoint[]) {
+  crimePoints = points;
 }
 
 // Define the background task
@@ -39,38 +54,68 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }: any) =>
         lng: location.coords.longitude,
       };
 
-      const redZoneCheck = checkRedZoneEntry(userPos, redZonePolygons);
+      // Check proximity with three alert levels (including crime points)
+      const proximityAlert = checkProximityAlerts(
+        userPos,
+        redZonePolygons,
+        0, // Inside = critical
+        500, // 500m = warning
+        crimePoints // Individual crime points
+      );
 
-      if (redZoneCheck.isInRedZone) {
-        // User is in a red zone
-        const zone = redZonePolygons[redZoneCheck.zoneIndex];
-        const zoneName = zone.title || 'Red Zone';
+      const now = Date.now();
+      const previousLevel = currentAlertLevel;
+      currentAlertLevel = proximityAlert.level;
 
-        // Send high priority notification
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: '🚨 RED ZONE ALERT! 🚨',
-            body: `You are in: ${zoneName}. Please leave immediately!`,
-            sound: true,
-            priority: Notifications.AndroidNotificationPriority.MAX,
-            vibrate: [0, 250, 250, 250],
-          },
-          trigger: null,
-        });
+      // Only send notification if:
+      // 1. Alert level changed, OR
+      // 2. Still in critical zone and cooldown passed
+      const shouldNotify =
+        previousLevel !== currentAlertLevel ||
+        (currentAlertLevel === 'critical' && now - lastNotificationTime > NOTIFICATION_COOLDOWN);
 
-        isCurrentlyInRedZone = true;
-      } else {
-        if (isCurrentlyInRedZone) {
-          // User left the red zone
+      if (shouldNotify) {
+        if (currentAlertLevel === 'critical') {
+          // CRITICAL: Inside crime hotspot - HIGH ALARM
           await Notifications.scheduleNotificationAsync({
             content: {
-              title: '✅ Safe Zone',
-              body: 'You have left the red zone.',
+              title: '🚨 DANGER! CRIME HOTSPOT ALERT! 🚨',
+              body: `You are inside ${proximityAlert.zoneName}! Leave immediately for your safety!`,
               sound: true,
+              priority: Notifications.AndroidNotificationPriority.MAX,
+              vibrate: [0, 500, 200, 500],
+              data: { level: 'critical', zone: proximityAlert.zoneName },
             },
             trigger: null,
           });
-          isCurrentlyInRedZone = false;
+          lastNotificationTime = now;
+        } else if (currentAlertLevel === 'warning') {
+          // WARNING: Near crime zone - Moderate alert
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: '⚠️ Warning: Approaching Crime Zone',
+              body: `You are ${proximityAlert.distance}m from ${proximityAlert.zoneName}. Stay alert and avoid the area.`,
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.HIGH,
+              vibrate: [0, 250, 250],
+              data: { level: 'warning', zone: proximityAlert.zoneName, distance: proximityAlert.distance },
+            },
+            trigger: null,
+          });
+          lastNotificationTime = now;
+        } else if (previousLevel !== 'safe') {
+          // SAFE: Left dangerous area
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: '✅ Safe Zone',
+              body: 'You are now in a safe area.',
+              sound: false,
+              priority: Notifications.AndroidNotificationPriority.DEFAULT,
+              data: { level: 'safe' },
+            },
+            trigger: null,
+          });
+          lastNotificationTime = now;
         }
       }
     }
@@ -105,11 +150,11 @@ export async function startBackgroundLocationTracking() {
     // Start location updates
     await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
       accuracy: Location.Accuracy.High,
-      timeInterval: 10000, // Update every 10 seconds
-      distanceInterval: 50, // Or when moved 50 meters
+      timeInterval: 5000, // Update every 5 seconds for better proximity detection
+      distanceInterval: 25, // Or when moved 25 meters
       foregroundService: {
-        notificationTitle: 'Red Zone Monitor Active',
-        notificationBody: 'Monitoring your location for red zones',
+        notificationTitle: 'Crime Zone Monitor Active',
+        notificationBody: 'Monitoring your location for crime zones',
         notificationColor: '#FF0000',
       },
       pausesUpdatesAutomatically: false,

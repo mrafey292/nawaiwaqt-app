@@ -1,4 +1,4 @@
-import { filterClustersByProximity, parseClusters, PolygonArea } from '@/utils/clusterParser';
+import { filterClustersByProximity, parseClusters, parseOutliers, PolygonArea, CrimePoint } from '@/utils/clusterParser';
 import { fetchClustersWithRetry } from './api';
 
 /**
@@ -12,6 +12,37 @@ export async function loadClusters(): Promise<PolygonArea[]> {
     return polygons;
   } catch (error) {
     console.error('Failed to load clusters:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load individual crime points (outliers) from API
+ */
+export async function loadCrimePoints(): Promise<CrimePoint[]> {
+  try {
+    const apiResponse = await fetchClustersWithRetry();
+    const crimePoints = parseOutliers(apiResponse);
+    console.log(`Loaded ${crimePoints.length} individual crime points from API`);
+    return crimePoints;
+  } catch (error) {
+    console.error('Failed to load crime points:', error);
+    throw error;
+  }
+}
+
+/**
+ * Load both clusters and crime points in a single API call
+ */
+export async function loadClustersAndCrimePoints(): Promise<{ clusters: PolygonArea[], crimePoints: CrimePoint[] }> {
+  try {
+    const apiResponse = await fetchClustersWithRetry();
+    const clusters = parseClusters(apiResponse);
+    const crimePoints = parseOutliers(apiResponse);
+    console.log(`Loaded ${clusters.length} clusters and ${crimePoints.length} crime points from API`);
+    return { clusters, crimePoints };
+  } catch (error) {
+    console.error('Failed to load clusters and crime points:', error);
     throw error;
   }
 }

@@ -27,7 +27,7 @@ export default function TabLayout() {
         name="report"
         options={{
           title: 'Report Crime',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="bell.badge.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="exclamationmark.triangle.fill" color={color} />,
         }}
       />
       <Tabs.Screen

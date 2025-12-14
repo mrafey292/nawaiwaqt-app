@@ -1,5 +1,6 @@
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { setTestHotzone as setGlobalTestHotzone, getTestHotzone } from '@/utils/testHotzone';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import React, { useEffect, useState } from 'react';
@@ -28,6 +29,7 @@ export default function ReportCrimeScreen() {
   const [selectedLocation, setSelectedLocation] = useState<LocationCoordinate | null>(null);
   const [showMap, setShowMap] = useState(false);
   const [userLocation, setUserLocation] = useState<LocationCoordinate | null>(null);
+  const [testHotzone, setTestHotzone] = useState(false);
 
   const crimeTypes = [
     { label: 'Theft', value: 'theft' },
@@ -40,7 +42,7 @@ export default function ReportCrimeScreen() {
     { label: 'Other', value: 'other' },
   ];
 
-  // Get user's current location on mount
+  // Get user's current location on mount and check test hotzone state
   useEffect(() => {
     const getInitialLocation = async () => {
       try {
@@ -58,6 +60,13 @@ export default function ReportCrimeScreen() {
         console.error('Error getting location:', error);
       }
     };
+    
+    // Check if test hotzone is already active
+    const currentTestHotzone = getTestHotzone();
+    if (currentTestHotzone.enabled) {
+      setTestHotzone(true);
+    }
+    
     getInitialLocation();
   }, []);
 
@@ -395,6 +404,73 @@ export default function ReportCrimeScreen() {
             </ThemedText>
           </TouchableOpacity>
 
+          {/* Test Hotzone Button - For Testing Only */}
+          <TouchableOpacity
+            style={[styles.testButton, testHotzone && styles.testButtonActive]}
+            onPress={async () => {
+              const newState = !testHotzone;
+              
+              if (newState) {
+                // Get fresh current location
+                try {
+                  const { status } = await Location.requestForegroundPermissionsAsync();
+                  if (status !== 'granted') {
+                    Alert.alert('Permission Denied', 'Location permission is required to create test hotzone.');
+                    return;
+                  }
+                  
+                  const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.High,
+                  });
+                  
+                  const currentLat = location.coords.latitude;
+                  const currentLng = location.coords.longitude;
+                  
+                  // Set global state first
+                  setGlobalTestHotzone(true, { lat: currentLat, lng: currentLng });
+                  
+                  // Then update local state
+                  setTestHotzone(true);
+                  
+                  Alert.alert(
+                    'Test Hotzone Created', 
+                    `A 500m x 500m test hotzone has been created at your current location:\nLat: ${currentLat.toFixed(6)}\nLng: ${currentLng.toFixed(6)}\n\nGo to the Home tab to see it on the map!`
+                  );
+                } catch (error) {
+                  console.error('Error getting location:', error);
+                  Alert.alert('Error', 'Failed to get current location. Make sure GPS is enabled.');
+                  setTestHotzone(false);
+                }
+              } else {
+                // Remove global state first
+                setGlobalTestHotzone(false, null);
+                
+                // Then update local state
+                setTestHotzone(false);
+                
+                Alert.alert('Test Hotzone Removed', 'The test hotzone has been disabled.');
+              }
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons 
+              name={testHotzone ? "warning" : "warning-outline"} 
+              size={22} 
+              color={testHotzone ? "#fff" : "#ff9800"} 
+            />
+            <ThemedText style={[styles.testButtonText, testHotzone && styles.testButtonTextActive]}>
+              {testHotzone ? '✓ Test Hotzone Active' : 'Create Test Hotzone'}
+            </ThemedText>
+          </TouchableOpacity>
+          {testHotzone && userLocation && (
+            <View style={styles.testInfoContainer}>
+              <Ionicons name="information-circle" size={18} color="#ff9800" />
+              <ThemedText style={styles.testInfo}>
+                Test hotzone created at your location. Navigate to Home tab to see alerts.
+              </ThemedText>
+            </View>
+          )}
+
           <View style={styles.disclaimerContainer}>
             <Ionicons name="shield-checkmark" size={18} color="#666" />
             <ThemedText style={styles.disclaimer}>
@@ -668,6 +744,47 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: 'bold',
     letterSpacing: 0.5,
+  },
+  testButton: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    borderColor: '#ff9800',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    gap: 10,
+  },
+  testButtonActive: {
+    backgroundColor: '#ff9800',
+    borderColor: '#ff9800',
+  },
+  testButtonText: {
+    color: '#ff9800',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  testButtonTextActive: {
+    color: '#fff',
+  },
+  testInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#fff3e0',
+    padding: 12,
+    borderRadius: 8,
+    gap: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#ffcc80',
+  },
+  testInfo: {
+    flex: 1,
+    fontSize: 12,
+    color: '#e65100',
+    lineHeight: 18,
   },
   disclaimerContainer: {
     flexDirection: 'row',

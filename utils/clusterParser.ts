@@ -9,8 +9,15 @@ interface ApiCluster {
   boundary: ClusterBoundaryPoint[];
 }
 
+interface ApiOutlier {
+  point_id: string;
+  longitude: number;
+  latitude: number;
+}
+
 interface ApiClustersResponse {
   clusters: ApiCluster[];
+  outliers: ApiOutlier[];
 }
 
 export interface PolygonArea {
@@ -21,6 +28,14 @@ export interface PolygonArea {
   fillColor?: string;
   fillOpacity?: number;
   clusterId?: number;
+}
+
+export interface CrimePoint {
+  id: string;
+  lat: number;
+  lng: number;
+  title?: string;
+  description?: string;
 }
 
 /**
@@ -35,8 +50,8 @@ export function parseCluster(apiCluster: ApiCluster): PolygonArea {
 
   return {
     coordinates,
-    title: `Cluster ${apiCluster.cluster_id}`,
-    description: `High alert area - exercise caution`,
+    title: `Crime Hotspot Zone`,
+    description: `High crime activity area - stay alert`,
     color: '#ff0000',
     fillColor: '#ff0000',
     fillOpacity: 0.4,
@@ -49,6 +64,23 @@ export function parseCluster(apiCluster: ApiCluster): PolygonArea {
  */
 export function parseClusters(apiResponse: ApiClustersResponse): PolygonArea[] {
   return apiResponse.clusters.map(cluster => parseCluster(cluster));
+}
+
+/**
+ * Transform API outliers to array of crime point markers
+ */
+export function parseOutliers(apiResponse: ApiClustersResponse): CrimePoint[] {
+  if (!apiResponse.outliers || apiResponse.outliers.length === 0) {
+    return [];
+  }
+  
+  return apiResponse.outliers.map(outlier => ({
+    id: outlier.point_id,
+    lat: outlier.latitude,
+    lng: outlier.longitude,
+    title: 'Individual Crime Event',
+    description: 'Reported crime incident location',
+  }));
 }
 
 /**

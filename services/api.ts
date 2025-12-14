@@ -10,9 +10,18 @@ interface ApiCluster {
   }>;
 }
 
+interface ApiOutlier {
+  point_id: string;
+  longitude: number;
+  latitude: number;
+}
+
 interface ApiClustersResponse {
   clusters: ApiCluster[];
+  outliers: ApiOutlier[];
 }
+
+export type { ApiOutlier };
 
 /**
  * Fetch clusters from the API
